@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Analyseur Plan Électrique BTP</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+
+    header {
+      background: #1a1a2e; color: white; padding: 20px 32px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { font-size: 1.3rem; font-weight: 600; }
+    header span { font-size: 1.6rem; }
+
+    .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+
+    .card {
+      background: white; border-radius: 12px; padding: 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 24px;
+    }
+
+    label { font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 8px; }
+
+    input[type="text"] {
+      width: 100%; padding: 12px 16px; border: 1.5px solid #ddd;
+      border-radius: 8px; font-size: 1rem; transition: border-color 0.2s;
+    }
+    input[type="text"]:focus { outline: none; border-color: #4f46e5; }
+
+    button {
+      margin-top: 16px; width: 100%; padding: 13px;
+      background: #4f46e5; color: white; border: none;
+      border-radius: 8px; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: background 0.2s;
+    }
+    button:hover { background: #4338ca; }
+    button:disabled { background: #9ca3af; cursor: not-allowed; }
+
+    .status {
+      display: none; margin-top: 16px; padding: 12px 16px;
+      border-radius: 8px; font-size: 0.9rem; font-weight: 500;
+    }
+    .status.loading { background: #eff6ff; color: #1d4ed8; display: flex; align-items: center; gap: 10px; }
+    .status.error { background: #fef2f2; color: #b91c1c; display: block; }
+
+    .spinner {
+      width: 18px; height: 18px; border: 2.5px solid #bfdbfe;
+      border-top-color: #1d4ed8; border-radius: 50%;
+      animation: spin 0.8s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* --- Tabs --- */
+    .tabs {
+      display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;
+    }
+    .tab {
+      padding: 10px 20px; cursor: pointer; font-weight: 600; font-size: 0.9rem;
+      color: #6b7280; border-bottom: 2px solid transparent;
+      margin-bottom: -2px; transition: all 0.2s;
+    }
+    .tab:hover { color: #4f46e5; }
+    .tab.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* --- Drop zones --- */
+    .drop-zone {
+      border: 2px dashed #d1d5db; border-radius: 10px; padding: 28px 20px;
+      text-align: center; cursor: pointer; transition: all 0.2s;
+      margin-bottom: 12px; position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: #4f46e5; background: #f5f3ff; }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+    .drop-zone .icon { font-size: 2rem; margin-bottom: 8px; }
+    .drop-zone .label { font-weight: 600; font-size: 0.95rem; color: #374151; }
+    .drop-zone .hint { font-size: 0.8rem; color: #9ca3af; margin-top: 4px; }
+
+    .file-info {
+      display: none; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: 8px; font-size: 0.85rem; color: #166534; margin-bottom: 12px;
+      align-items: center; gap: 8px;
+    }
+    .file-info.visible { display: flex; }
+    .file-info .name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-info .remove {
+      background: none; border: none; color: #dc2626; cursor: pointer;
+      font-size: 1.1rem; padding: 0 4px; margin: 0; width: auto;
+    }
+
+    /* --- Images preview --- */
+    .images-preview {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+    }
+    .images-preview .thumb {
+      position: relative; width: 80px; height: 80px; border-radius: 6px;
+      overflow: hidden; border: 1px solid #e5e7eb;
+    }
+    .images-preview .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .images-preview .thumb .remove-thumb {
+      position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6);
+      color: white; border: none; border-radius: 50%; width: 20px; height: 20px;
+      font-size: 0.7rem; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; padding: 0; margin: 0;
+    }
+
+    .separator {
+      display: flex; align-items: center; gap: 12px; margin: 16px 0;
+      color: #9ca3af; font-size: 0.8rem; font-weight: 500;
+    }
+    .separator::before, .separator::after {
+      content: ''; flex: 1; height: 1px; background: #e5e7eb;
+    }
+
+    #result { display: none; }
+    #result h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #374151; }
+
+    .actions { display: flex; gap: 10px; margin-bottom: 16px; }
+    .btn-secondary {
+      padding: 8px 16px; border: 1.5px solid #d1d5db; background: white;
+      border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-weight: 500;
+      width: auto; margin: 0; color: #374151;
+    }
+    .btn-secondary:hover { background: #f9fafb; }
+
+    .markdown-body {
+      line-height: 1.7; color: #374151;
+    }
+    .markdown-body h1 { font-size: 1.5rem; color: #111; margin: 24px 0 12px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }
+    .markdown-body h2 { font-size: 1.2rem; color: #1a1a2e; margin: 20px 0 10px; }
+    .markdown-body h3 { font-size: 1rem; color: #374151; margin: 16px 0 8px; }
+    .markdown-body table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.9rem; }
+    .markdown-body th { background: #f3f4f6; padding: 10px 12px; text-align: left; border: 1px solid #e5e7eb; font-weight: 600; }
+    .markdown-body td { padding: 9px 12px; border: 1px solid #e5e7eb; }
+    .markdown-body tr:nth-child(even) td { background: #fafafa; }
+    .markdown-body code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; }
+    .markdown-body pre { background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+    .markdown-body pre code { background: none; color: inherit; padding: 0; }
+    .markdown-body blockquote { border-left: 4px solid #4f46e5; padding: 10px 16px; background: #f5f3ff; border-radius: 0 6px 6px 0; margin: 12px 0; color: #4c1d95; }
+    .markdown-body ul, .markdown-body ol { padding-left: 20px; margin: 8px 0; }
+    .markdown-body li { margin: 4px 0; }
+    .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
+    .markdown-body strong { color: #111; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span>⚡</span>
+  <h1>Analyseur Plan Électrique BTP</h1>
+</header>
+
+<div class="container">
+  <div class="card">
+    <!-- Configuration Webhook -->
+    <div style="margin-bottom: 20px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+      <label style="margin-bottom: 8px;">⚙️ URL du Webhook n8n</label>
+      <input type="text" id="webhook-url" value="http://187.77.169.67:5678/webhook-test/btp-electricite-agents-test" 
+             style="font-family: monospace; font-size: 0.9rem;" 
+             placeholder="http://votre-serveur:5678/webhook-test/votre-workflow">
+      <div style="font-size: 0.8rem; color: #6b7280; margin-top: 6px;">
+        💡 Modifiez cette URL pour pointer vers votre workflow n8n
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" data-tab="upload" onclick="switchTab('upload')">📁 Fichiers locaux</div>
+      <div class="tab" data-tab="url" onclick="switchTab('url')">🔗 URL Google Drive</div>
+    </div>
+
+    <!-- Tab : Upload fichiers -->
+    <div class="tab-content active" id="tab-upload">
+
+      <!-- PDF -->
+      <label>📄 Plan PDF (texte + légendes)</label>
+      <div class="drop-zone" id="drop-pdf">
+        <input type="file" accept=".pdf" id="input-pdf" onchange="handlePdf(this)">
+        <div class="icon">📄</div>
+        <div class="label">Glisser-déposer le PDF ici</div>
+        <div class="hint">ou cliquer pour sélectionner — .pdf uniquement</div>
+      </div>
+      <div class="file-info" id="info-pdf">
+        <span>📄</span>
+        <span class="name" id="name-pdf"></span>
+        <button class="remove" onclick="removePdf()" title="Retirer">✕</button>
+      </div>
+
+      <div class="separator">ET / OU</div>
+
+      <!-- Images PNG -->
+      <label>🖼️ Images du plan (vision / comptage symboles)</label>
+      <div class="drop-zone" id="drop-images">
+        <input type="file" accept=".png,.jpg,.jpeg,.webp" multiple id="input-images" onchange="handleImages(this)">
+        <div class="icon">�️</div>
+        <div class="label">Glisser-déposer les images ici</div>
+        <div class="hint">ou cliquer pour sélectionner — .png .jpg .webp — plusieurs fichiers autorisés</div>
+      </div>
+      <div class="images-preview" id="images-preview"></div>
+    </div>
+
+    <!-- Tab : URL -->
+    <div class="tab-content" id="tab-url">
+      <label for="pdf-url">� URL du plan PDF (Google Drive)</label>
+      <input type="text" id="pdf-url"
+        placeholder="https://drive.google.com/file/d/XXXXXX/view?usp=sharing"
+        value="">
+    </div>
+
+    <button id="analyze-btn" onclick="analyze()">⚡ Analyser le plan</button>
+
+    <div class="status loading" id="status-loading">
+      <div class="spinner"></div>
+      <span id="status-text">Analyse en cours… (2 à 5 minutes)</span>
+    </div>
+    <div class="status error" id="status-error"></div>
+  </div>
+
+  <div class="card" id="result">
+    <h2>📄 Rapport d'analyse</h2>
+    <div class="actions">
+      <button class="btn-secondary" onclick="copyMarkdown()">📋 Copier Markdown</button>
+      <button class="btn-secondary" onclick="downloadMarkdown()">⬇️ Télécharger .md</button>
+    </div>
+    <div class="markdown-body" id="report-html"></div>
+  </div>
+</div>
+
+<script>
+  let lastMarkdown = "";
+  let pdfFile = null;
+  let imageFiles = [];
+
+  // --- Tabs ---
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tab));
+  }
+
+  // --- PDF handling ---
+  function handlePdf(input) {
+    if (!input.files.length) return;
+    pdfFile = input.files[0];
+    document.getElementById('name-pdf').textContent = pdfFile.name + ' (' + (pdfFile.size / 1024 / 1024).toFixed(1) + ' Mo)';
+    document.getElementById('info-pdf').classList.add('visible');
+    document.getElementById('drop-pdf').style.display = 'none';
+  }
+  function removePdf() {
+    pdfFile = null;
+    document.getElementById('input-pdf').value = '';
+    document.getElementById('info-pdf').classList.remove('visible');
+    document.getElementById('drop-pdf').style.display = '';
+  }
+
+  // --- Images handling ---
+  function handleImages(input) {
+    for (const f of input.files) {
+      if (!imageFiles.some(e => e.name === f.name && e.size === f.size)) {
+        imageFiles.push(f);
+      }
+    }
+    renderImagePreviews();
+  }
+  function removeImage(idx) {
+    imageFiles.splice(idx, 1);
+    renderImagePreviews();
+  }
+  function renderImagePreviews() {
+    const container = document.getElementById('images-preview');
+    container.innerHTML = '';
+    imageFiles.forEach((f, i) => {
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(f);
+      img.alt = f.name;
+      const btn = document.createElement('button');
+      btn.className = 'remove-thumb';
+      btn.textContent = '✕';
+      btn.onclick = () => removeImage(i);
+      thumb.appendChild(img);
+      thumb.appendChild(btn);
+      container.appendChild(thumb);
+    });
+  }
+
+  // --- Drag & Drop ---
+  ['drop-pdf', 'drop-images'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+    el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); el.classList.remove('dragover');
+      const input = el.querySelector('input[type="file"]');
+      input.files = e.dataTransfer.files;
+      input.dispatchEvent(new Event('change'));
+    });
+  });
+
+  // --- Helpers ---
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // --- Analyze ---
+  async function analyze() {
+    const activeTab = document.querySelector('.tab.active').dataset.tab;
+    const url = document.getElementById('pdf-url').value.trim();
+
+    // Validation
+    if (activeTab === 'url' && !url) {
+      alert('Colle une URL Google Drive !'); return;
+    }
+    if (activeTab === 'upload' && !pdfFile && imageFiles.length === 0) {
+      alert('Ajoute au moins un fichier PDF ou une image PNG !'); return;
+    }
+
+    // Reset UI
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('status-error').style.display = 'none';
+    document.getElementById('status-loading').style.display = 'flex';
+    document.getElementById('analyze-btn').disabled = true;
+
+    const parts = [];
+    if (pdfFile) parts.push('texte PDF');
+    if (imageFiles.length) parts.push(imageFiles.length + ' image(s) vision');
+    if (activeTab === 'url') parts.push('URL');
+    document.getElementById('status-text').textContent =
+      'Analyse en cours (' + parts.join(' + ') + ')… 2 à 5 minutes';
+
+    try {
+      let resp;
+
+      const webhookUrl = document.getElementById('webhook-url').value.trim();
+      if (!webhookUrl) {
+        alert('Configure l\'URL du webhook n8n !');
+        return;
+      }
+
+      if (activeTab === 'url') {
+        // Mode URL (inchangé)
+        resp = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdf_url: url })
+        });
+      } else {
+        // Mode upload : envoyer en JSON avec base64
+        const payload = {};
+
+        if (pdfFile) {
+          payload.pdf_base64 = await fileToBase64(pdfFile);
+          payload.pdf_filename = pdfFile.name;
+        }
+
+        if (imageFiles.length > 0) {
+          payload.images = [];
+          for (const img of imageFiles) {
+            payload.images.push({
+              base64: await fileToBase64(img),
+              filename: img.name,
+              mime: img.type
+            });
+          }
+        }
+
+        resp = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      if (!resp.ok) throw new Error('Erreur HTTP ' + resp.status);
+
+      const text = await resp.text();
+      lastMarkdown = text;
+
+      document.getElementById('report-html').innerHTML = marked.parse(text);
+      document.getElementById('result').style.display = 'block';
+      document.getElementById('status-loading').style.display = 'none';
+      document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+
+    } catch (err) {
+      document.getElementById('status-loading').style.display = 'none';
+      const errEl = document.getElementById('status-error');
+      errEl.textContent = '❌ Erreur : ' + err.message;
+      errEl.style.display = 'block';
+    }
+
+    document.getElementById('analyze-btn').disabled = false;
+  }
+
+  function copyMarkdown() {
+    navigator.clipboard.writeText(lastMarkdown).then(() => alert('Markdown copié !'));
+  }
+
+  function downloadMarkdown() {
+    const blob = new Blob([lastMarkdown], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'rapport-electrique-btp.md';
+    a.click();
+  }
+
+  document.getElementById('pdf-url').addEventListener('keydown', e => {
+    if (e.key === 'Enter') analyze();
+  });
+</script>
+</body>
+</html>

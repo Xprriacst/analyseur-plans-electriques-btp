@@ -1,0 +1,1281 @@
+{
+  "name": "BTP - Electricite Multi-Agent Analyzer v3 (Vision)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "btp-electricite-agents",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-main",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst body = $input.first().json.body || $input.first().json;\nconst item = {\n  json: {\n    has_pdf_url: !!body.pdf_url,\n    has_pdf_base64: !!body.pdf_base64,\n    has_images: !!(body.images && body.images.length > 0),\n    pdf_url: body.pdf_url || '',\n    pdf_base64: body.pdf_base64 || '',\n    pdf_filename: body.pdf_filename || 'plan.pdf',\n    image_count: body.images ? body.images.length : 0\n  },\n  binary: {}\n};\n\n// Convert base64 images to binary fields\nif (body.images && body.images.length > 0) {\n  for (let i = 0; i < body.images.length; i++) {\n    item.binary['image_' + i] = {\n      data: body.images[i].base64,\n      mimeType: body.images[i].mime || 'image/png',\n      fileName: body.images[i].filename || ('image_' + i + '.png')\n    };\n  }\n}\n\n// Convert base64 PDF to binary if present\nif (body.pdf_base64) {\n  item.binary['pdf_data'] = {\n    data: body.pdf_base64,\n    mimeType: 'application/pdf',\n    fileName: body.pdf_filename || 'plan.pdf'\n  };\n}\n\nreturn [item];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "prepare-input",
+      "name": "Prepare Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "url-check",
+              "leftValue": "={{ $json.has_pdf_url }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-has-url",
+      "name": "IF Has URL",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        520,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ (() => { const url = $json.pdf_url; const m = url.match(/\\/d\\/([a-zA-Z0-9_-]+)/); return m ? 'https://drive.google.com/uc?export=download&id=' + m[1] : url; })() }}",
+        "options": {}
+      },
+      "id": "download-pdf",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "extract-text-url",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "pdf_text_url",
+              "name": "pdf_text",
+              "value": "={{ $json.text.substring(0, 80000) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-text-url",
+      "name": "Set PDF Text URL",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {},
+        "binaryPropertyName": "pdf_data"
+      },
+      "id": "extract-text-b64",
+      "name": "Extract PDF Base64",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        760,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "pdf_text_b64",
+              "name": "pdf_text",
+              "value": "={{ $json.text ? $json.text.substring(0, 80000) : '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-text-b64",
+      "name": "Set PDF Text B64",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1000,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-text",
+      "name": "Merge Text",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1480,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "img-check",
+              "leftValue": "={{ $json.has_images }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-has-images",
+      "name": "IF Has Images",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        520,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Identifie les informations générales visibles sur ce plan électrique BTP.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "system",
+              "message": "Analyse visuellement ce plan électrique BTP.\n\n<task>\nExtrais les informations générales visibles sur le plan :\n- Cartouche (titre, adresse, date, échelle, indice de révision, bureau d'études)\n- Orientation et disposition générale du bâtiment\n- Nombre de pièces/zones visibles\n- Étages représentés\n- Légende générale si visible\n</task>\n\n<output_format>\nRéponds en Markdown structuré avec un tableau des informations trouvées.\nMentionne ce qui est visible graphiquement mais absent du texte extrait.\n</output_format>"
+            },
+            {
+              "type": "user",
+              "messageType": "imageBinary",
+              "binaryImageDataKey": "image_0",
+              "imageDetail": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "vision-infos",
+      "name": "Vision Infos Générales",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        800,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "vision-infos-llm",
+      "name": "LLM Vision Infos Générales",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        900
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Compte et identifie tous les symboles de courants forts sur ce plan électrique BTP.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "system",
+              "message": "Analyse visuellement ce plan électrique BTP pour identifier et COMPTER tous les symboles de courants forts.\n\n<task>\nIdentifie et compte précisément chaque symbole graphique :\n- Prises de courant 2P+T (symbole : demi-cercle avec traits)\n- Prises 32A / spécialisées (symbole plus gros ou marqué)\n- Points lumineux / plafonniers (symbole : cercle avec croix ou X)\n- Appliques murales (symbole : demi-cercle sur mur)\n- Spots encastrés (symbole : petit cercle plein)\n- Interrupteurs simples (symbole : point avec trait)\n- Interrupteurs va-et-vient (symbole : point avec 2 traits)\n- Boutons poussoirs\n- Tableaux électriques (rectangle avec symbole)\n- Convecteurs / radiateurs\n- Chauffe-eau (symbole ballon)\n- VMC (symbole ventilateur)\n- Boîtes de dérivation\n\nPour chaque pièce visible, compte les symboles séparément.\n</task>\n\n<output_format>\n### Comptage par pièce\n| Pièce | Prises 16A | Prises spé | Pts lumineux | Interrupteurs | Autres |\n|-------|-----------|------------|-------------|---------------|--------|\n| Cuisine | 6 | 2 (four, LV) | 2 | 1 SA + 1 VV | - |\n| Salon | 5 | - | 3 | 2 VV | - |\n\n### Totaux\n| Symbole | Quantité totale |\n|---------|----------------|\n| Prises 16A | XX |\n| Prises spécialisées | XX |\n| Points lumineux | XX |\n| Interrupteurs | XX |\n\n### Observations visuelles\n[Symboles non identifiés, zones floues, circuits visibles par couleur de trait]\n</output_format>\n\n<guidelines>\n- Compte CHAQUE symbole individuellement, même groupés\n- Distingue les symboles par pièce/zone\n- Si un symbole est ambigu, mentionne-le dans les observations\n- Indique la confiance du comptage (certain / approximatif)\n</guidelines>"
+            },
+            {
+              "type": "user",
+              "messageType": "imageBinary",
+              "binaryImageDataKey": "image_0",
+              "imageDetail": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "vision-cf",
+      "name": "Vision Courants Forts",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        800,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "vision-cf-llm",
+      "name": "LLM Vision Courants Forts",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        1100
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Compte et identifie tous les symboles de courants faibles sur ce plan électrique BTP.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "system",
+              "message": "Analyse visuellement ce plan électrique BTP pour identifier et COMPTER tous les symboles de courants faibles.\n\n<task>\nIdentifie et compte précisément chaque symbole graphique :\n- Prises RJ45 / réseau (symbole : carré avec RJ ou rectangle)\n- Prises téléphone (symbole : T ou rectangle avec T)\n- Prises TV / coaxiales (symbole : rectangle avec antenne)\n- Coffret de communication / GTL\n- Détecteurs de fumée DAAF (symbole : cercle avec DF ou fumée)\n- Détecteurs de mouvement (symbole : œil ou secteur angulaire)\n- Détecteurs d'ouverture (symbole : rectangle sur porte/fenêtre)\n- Sirène (symbole : triangle ou haut-parleur)\n- Centrale alarme\n- Interphone / visiophone (symbole : combiné ou écran)\n- Caméras (symbole : caméra stylisée)\n- Haut-parleurs encastrés\n\nPour chaque pièce visible, compte les symboles séparément.\n</task>\n\n<output_format>\n### Comptage par pièce\n| Pièce | RJ45 | Téléphone | TV | DAAF | Détecteurs | Autres |\n|-------|------|-----------|----|----- |-----------|--------|\n| Salon | 2 | - | 1 | - | 1 PIR | - |\n| Chambre 1 | 1 | - | 1 | 1 | - | - |\n\n### Totaux\n| Symbole | Quantité totale |\n|---------|----------------|\n| Prises RJ45 | XX |\n| Prises TV | XX |\n| DAAF | XX |\n| Détecteurs mouvement | XX |\n\n### Observations visuelles\n[Symboles non identifiés, câblage visible, topologie réseau]\n</output_format>\n\n<guidelines>\n- Les DAAF sont obligatoires : compte-les et signale si absents de certaines pièces\n- Distingue RJ45 données des prises téléphone\n- Identifie la topologie si les câbles sont dessinés (étoile depuis GTL)\n</guidelines>"
+            },
+            {
+              "type": "user",
+              "messageType": "imageBinary",
+              "binaryImageDataKey": "image_0",
+              "imageDetail": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "vision-cfaibles",
+      "name": "Vision Courants Faibles",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        800,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "vision-cfaibles-llm",
+      "name": "LLM Vision Courants Faibles",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        1300
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Identifie les éléments de sécurité électrique visibles sur ce plan BTP.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "system",
+              "message": "Analyse visuellement ce plan électrique BTP pour identifier les éléments de sécurité électrique.\n\n<task>\nIdentifie visuellement :\n- Emplacement du/des tableau(x) électrique(s) (TGBT, divisionnaires)\n- Symboles de mise à la terre (piquet de terre, liaison équipotentielle)\n- Volumes de sécurité salle de bain (zones 0, 1, 2 si dessinées)\n- Position des équipements par rapport aux points d'eau\n- Prises ou appareils dans les volumes interdits\n- DAAF (présence/absence par pièce)\n- Coupure d'urgence (emplacement)\n- Parafoudre (symbole au tableau)\n- Cheminement des câbles si visible\n- Schéma unifilaire si présent sur le plan\n</task>\n\n<output_format>\n### Éléments de sécurité identifiés visuellement\n| Élément | Présent | Emplacement | Observation |\n|---------|---------|-------------|-------------|\n| TGBT | Oui/Non | Garage | Accessible |\n| Mise à la terre | Oui/Non | - | Symbole visible |\n| Volumes SDB | Oui/Non | SDB | Zones tracées |\n| DAAF chambres | Oui/Non | Ch1, Ch2 | Manquant Ch3 |\n\n### Anomalies visuelles détectées\n- [Prise dans volume 1 SDB visible à telle position]\n- [Luminaire sans symbole IP dans SDB]\n\n### Vérifications impossibles sur plan\n- [Ce qui nécessite une visite sur site]\n</output_format>\n\n<guidelines>\n- Concentre-toi sur ce qui est VISIBLE graphiquement\n- Signale les anomalies de positionnement (prise trop près d'un point d'eau)\n- Vérifie la présence des DAAF dans chaque chambre et couloir\n</guidelines>"
+            },
+            {
+              "type": "user",
+              "messageType": "imageBinary",
+              "binaryImageDataKey": "image_0",
+              "imageDetail": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "vision-securite",
+      "name": "Vision Sécurité",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        800,
+        1300
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "vision-securite-llm",
+      "name": "LLM Vision Sécurité",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        1500
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Compte et identifie tous les symboles d'automatismes et domotique sur ce plan BTP.",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "system",
+              "message": "Analyse visuellement ce plan électrique BTP pour identifier les symboles d'automatismes et domotique.\n\n<task>\nIdentifie et compte précisément :\n- Volets roulants (symbole : rectangle avec flèches haut/bas ou VR)\n- Stores (symbole similaire aux volets)\n- Commandes de volets (interrupteurs montée/descente)\n- Commande centralisée volets\n- Détecteurs de présence (symbole : secteur angulaire ou œil)\n- Détecteurs crépusculaires\n- Minuteries (symbole : horloge)\n- Télérupteurs (symbole : T dans cercle)\n- Variateurs (symbole : potentiomètre)\n- Thermostat (symbole : thermomètre ou T°)\n- Contacteur jour/nuit (symbole : horloge EDF)\n- Motorisation portail (symbole : moteur sur portail)\n- Porte de garage motorisée\n- Symboles bus domotique (KNX, etc.)\n</task>\n\n<output_format>\n### Comptage par pièce/zone\n| Pièce/Zone | Volets | Détecteurs | Variateurs | Autres |\n|------------|--------|-----------|-----------|--------|\n| Salon | 2 VR | 1 présence | 1 | - |\n| Entrée | - | 1 présence | - | Minuterie |\n| Extérieur | - | 1 crépusculaire | - | Portail motorisé |\n\n### Totaux\n| Équipement | Quantité |\n|-----------|----------|\n| Volets roulants | XX |\n| Détecteurs présence | XX |\n| Variateurs | XX |\n| Télérupteurs | XX |\n\n### Observations visuelles\n[Câblage spécifique visible, bus domotique, centralisation]\n</output_format>\n\n<guidelines>\n- Distingue volets roulants des stores\n- Identifie si les commandes sont individuelles ou centralisées\n- Repère les symboles de bus domotique si présents\n</guidelines>"
+            },
+            {
+              "type": "user",
+              "messageType": "imageBinary",
+              "binaryImageDataKey": "image_0",
+              "imageDetail": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "vision-auto",
+      "name": "Vision Automatismes",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        800,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "vision-auto-llm",
+      "name": "LLM Vision Automatismes",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        1700
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Collect all vision results from the 5 chains\nconst results = $input.all();\nconst sections = [];\n\nfor (const item of results) {\n  if (item.json && item.json.text) {\n    sections.push(item.json.text);\n  } else if (item.json && item.json.response && item.json.response.text) {\n    sections.push(item.json.response.text);\n  } else if (typeof item.json === 'string') {\n    sections.push(item.json);\n  }\n}\n\nreturn [{\n  json: {\n    vision_analysis: sections.join('\\n\\n---\\n\\n') || 'Aucune analyse vision disponible.'\n  }\n}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "merge-vision",
+      "name": "Merge Vision Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "no_vision",
+              "name": "vision_analysis",
+              "value": "Aucune image fournie — analyse uniquement textuelle.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "no-vision",
+      "name": "No Vision",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1240,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition"
+      },
+      "id": "merge-all",
+      "name": "Merge All",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1700,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition"
+      },
+      "id": "merge-all-novision",
+      "name": "Merge All NoVision",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1700,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\nlet pdf_text = '';\nlet vision_analysis = '';\n\nfor (const item of items) {\n  if (item.json.pdf_text) pdf_text = item.json.pdf_text;\n  if (item.json.vision_analysis) vision_analysis = item.json.vision_analysis;\n}\n\nconst combined = `=== DONNÉES TEXTE EXTRAITES DU PDF ===\n${pdf_text}\n\n=== ANALYSES VISION DES IMAGES DU PLAN ===\n${vision_analysis}`;\n\nreturn [{\n  json: {\n    pdf_text: pdf_text,\n    vision_analysis: vision_analysis,\n    combined_context: combined.substring(0, 120000)\n  }\n}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "combine-context",
+      "name": "Combine Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        850
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.combined_context }}",
+        "options": {
+          "maxIterations": 20
+        },
+        "systemMessage": "Tu coordonnes l'analyse complète d'un plan électrique BTP en combinant DEUX sources de données :\n\n<data_sources>\n1. TEXTE PDF : texte extrait du plan (légendes, cartouche, notes techniques)\n2. ANALYSE VISION : résultats du comptage visuel des symboles sur les images du plan (5 analyses spécialisées)\n</data_sources>\n\n<context>\nLe rapport sera lu par des électriciens professionnels qui doivent chiffrer et réaliser l'installation.\nLes données vision fournissent le COMPTAGE QUANTITATIF des symboles (prises, points lumineux, etc.).\nLes données texte fournissent les SPÉCIFICATIONS TECHNIQUES (sections, protections, normes).\nLa combinaison des deux est essentielle pour un rapport complet.\n</context>\n\n<available_agents>\n- agent_infos_generales : Extrait métadonnées projet depuis le texte\n- agent_courants_forts : Analyse technique courants forts (texte + données vision CF)\n- agent_courants_faibles : Analyse technique courants faibles (texte + données vision CF faibles)\n- agent_securite : Vérifie conformité NFC 15-100 (texte + données vision sécurité)\n- agent_automatismes : Identifie domotique (texte + données vision automatismes)\n</available_agents>\n\n<execution_strategy>\n1. Appelle agent_infos_generales en premier\n2. Appelle les 4 autres agents en parallèle\n3. Synthétise en croisant les données texte ET vision\n4. Si le comptage vision contredit le texte, signale l'écart\n</execution_strategy>\n\n<output_format>\n# Rapport d'Analyse Électrique BTP\n\n## 📋 Informations Générales\n[Résultat agent_infos_generales]\n\n## ⚡ Courants Forts\n[Résultat agent_courants_forts — incluant les quantités issues de la vision]\n\n## 📡 Courants Faibles\n[Résultat agent_courants_faibles — incluant les quantités issues de la vision]\n\n## 🛡️ Sécurité & Conformité\n[Résultat agent_securite — incluant les anomalies visuelles]\n\n## 🤖 Automatismes & Domotique\n[Résultat agent_automatismes — incluant les quantités issues de la vision]\n\n## 📊 Synthèse Globale\n- Puissance totale estimée\n- Cohérence texte/vision\n- Points d'attention critiques\n- Écarts détectés entre les sources\n</output_format>\n\n<guidelines>\n- Conserve les tableaux des agents sans reformater\n- Mets en évidence les données issues de la vision avec [VISION] si elles complètent le texte\n- Signale tout écart entre comptage vision et spécifications texte\n- Si aucune image n'a été fournie, précise que l'analyse est uniquement textuelle\n</guidelines>"
+      },
+      "id": "orchestrateur",
+      "name": "Orchestrateur",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2200,
+        850
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "llm-orch",
+      "name": "LLM Orchestrateur",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2100,
+        1080
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "Tu extrais les métadonnées administratives et techniques d'un plan électrique BTP.\n\n<context>\nCes informations servent à identifier le projet, vérifier la version du plan, et contextualiser l'installation. Elles seront lues par le chef de chantier et le bureau d'études.\n</context>\n\n<extraction_targets>\nCherche ces informations dans le texte du plan (cartouche, en-tête, légendes) :\n- Nom du projet / opération\n- Adresse complète du chantier\n- Type de bâtiment (résidentiel, tertiaire, industriel, ERP)\n- Surface totale en m²\n- Nombre d'étages ou de niveaux\n- Nombre de lots / logements / pièces\n- Maître d'ouvrage (client)\n- Maître d'œuvre / Bureau d'études\n- Date d'édition du plan\n- Échelle du plan\n- Indice de révision (A, B, C, etc.)\n- Numéro de plan / référence\n</extraction_targets>\n\n<output_format>\nRéponds en Markdown avec ce tableau exact :\n\n| Champ | Valeur |\n|-------|--------|\n| Projet | [nom exact du projet] |\n| Adresse | [adresse complète] |\n| Type de bâtiment | [résidentiel/tertiaire/industriel/ERP] |\n| Surface | [X m²] |\n| Étages | [nombre] |\n| Lots/Logements | [nombre] |\n| Maître d'ouvrage | [nom] |\n| Bureau d'études | [nom] |\n| Date du plan | [JJ/MM/AAAA] |\n| Échelle | [1:50 / 1:100 / etc.] |\n| Indice | [A/B/C/etc.] |\n| Référence plan | [numéro] |\n\n**Observations :**\n[Ajoute ici tout élément contextuel pertinent : plan provisoire, modifications en cours, notes spéciales]\n</output_format>\n\n<handling_missing_data>\nSi une information n'est pas présente dans le texte :\n- Indique \"Non spécifié\" dans le tableau\n- Ne devine jamais, ne fais pas d'hypothèses\n- Mentionne dans les observations si des informations critiques manquent\n</handling_missing_data>"
+        }
+      },
+      "id": "agent_infos_generales",
+      "name": "agent_infos_generales",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        2200,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "agent_infos_generales-llm",
+      "name": "LLM Infos Generales",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2200,
+        1340
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "Tu analyses exhaustivement les installations électriques courants forts (230V/400V) d'un plan BTP selon la norme NFC 15-100.\n\n<context>\nCette analyse sert au chiffrage des matériaux et à la planification de l'installation. Les électriciens utiliseront ces données pour commander câbles, protections, et appareillages. La précision des quantités et sections est critique.\n</context>\n\n<elements_to_identify>\nPour chaque élément, note la quantité, l'emplacement, et les caractéristiques techniques :\n\n**Tableaux électriques :**\n- TGBT (Tableau Général Basse Tension)\n- Tableaux divisionnaires\n- Ampérage, nombre de modules, emplacement\n\n**Circuits d'éclairage :**\n- Points lumineux par pièce\n- Type (plafonnier, applique, spot, réglette)\n- Commande (simple, va-et-vient, télérupteur)\n\n**Prises de courant :**\n- Prises 16A standard (2P+T)\n- Prises 32A (cuisinière, plaque)\n- Prises spécialisées (lave-linge, lave-vaisselle, four, congélateur)\n\n**Circuits de puissance :**\n- Chauffage électrique (convecteurs, radiateurs, plancher chauffant)\n- Chauffe-eau électrique\n- VMC (Ventilation Mécanique Contrôlée)\n- Climatisation\n\n**Câblage :**\n- Sections de câbles utilisées (1.5mm², 2.5mm², 6mm², 10mm², etc.)\n- Type de câble (U-1000 R2V, H07V-U, etc.)\n\n**Protections :**\n- Disjoncteurs (calibre en A, courbe C/D)\n- Interrupteurs différentiels (30mA type A/AC, 40A/63A)\n</elements_to_identify>\n\n<output_format>\nRéponds en Markdown structuré avec ces tableaux :\n\n### Tableaux électriques\n| Désignation | Type | Ampérage | Nb modules | Emplacement |\n|-------------|------|----------|------------|-------------|\n| TGBT | Principal | 63A | 4 rangées | Garage |\n| TD Étage | Divisionnaire | 40A | 2 rangées | Palier étage |\n\n### Circuits par pièce\n| Pièce | Éclairage | Prises 16A | Prises spé | Puissance estimée |\n|-------|-----------|------------|------------|-------------------|\n| Cuisine | 2 points | 6 | Four 32A, Lave-vaisselle 16A | 9 kW |\n| Salon | 3 points | 5 | - | 1.5 kW |\n\n### Circuits spécialisés\n| Circuit | Équipement | Section | Protection | Emplacement |\n|---------|------------|---------|------------|-------------|\n| C1 | Plaque cuisson | 6 mm² | 32A | Cuisine |\n| C2 | Chauffe-eau | 2.5 mm² | 20A | SDB |\n\n### Chauffage & VMC\n| Zone | Type | Puissance | Section | Protection |\n|------|------|-----------|---------|------------|\n| Chambre 1 | Convecteur | 1500W | 1.5 mm² | 16A |\n| VMC | Simple flux | 40W | 1.5 mm² | 2A |\n\n**Puissance totale installée :** [Somme en kW]\n\n**Observations techniques :**\n[Points d'attention : surcharge potentielle, sections inhabituelles, circuits manquants]\n</output_format>\n\n<guidelines>\n- Compte précisément chaque élément visible dans le plan\n- Si une section de câble n'est pas indiquée, mentionne \"Section non spécifiée\"\n- Signale les circuits qui semblent sous-dimensionnés\n- Additionne les puissances pour donner une estimation de charge totale\n</guidelines>\n```"
+        }
+      },
+      "id": "agent_courants_forts",
+      "name": "agent_courants_forts",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        2440,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "agent_courants_forts-llm",
+      "name": "LLM Courants Forts",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2440,
+        1340
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "Tu analyses exhaustivement les installations courants faibles (télécom, réseau, sécurité) d'un plan BTP.\n\n<context>\nCette analyse sert au câblage structuré, à l'installation des systèmes de communication et de sécurité. Les installateurs VDI (Voix Données Images) et les entreprises de sécurité utilisent ces données. La topologie réseau et les emplacements sont critiques.\n</context>\n\n<elements_to_identify>\nPour chaque élément, note la quantité, l'emplacement, et le type :\n\n**Réseau & Télécom :**\n- Prises RJ45 (catégorie : Cat5e, Cat6, Cat6a)\n- Prises téléphone RJ11\n- Prises TV / coaxiales\n- Coffret de communication (GTL - Gaine Technique Logement)\n- DTI (Dispositif de Terminaison Intérieur) / PTO (Point de Terminaison Optique)\n- Baie de brassage / Switch\n- Points d'accès WiFi\n\n**Sécurité & Alarme :**\n- Centrale d'alarme\n- Détecteurs de mouvement (PIR)\n- Détecteurs d'ouverture (DAS)\n- Sirène intérieure / extérieure\n- Clavier de commande\n- Badge / lecteur RFID\n- Détecteurs de fumée DAAF (obligatoires)\n\n**Communication & Contrôle d'accès :**\n- Interphone audio\n- Vidéophone / visiophone\n- Platine de rue\n- Gâche électrique\n- Ventouse électromagnétique\n\n**Vidéosurveillance :**\n- Caméras IP / analogiques\n- Enregistreur NVR/DVR\n- Écran de contrôle\n\n**Audio & Multimédia :**\n- Enceintes encastrées\n- Amplificateur audio\n- Prises HDMI murales\n</elements_to_identify>\n\n<output_format>\nRéponds en Markdown structuré avec ces tableaux :\n\n### Réseau & Télécom\n| Pièce | RJ45 | Téléphone | TV | Observations |\n|-------|------|-----------|----|--------------|\n| Salon | 2 (Cat6) | - | 1 coax | Derrière TV + bureau |\n| Chambre 1 | 1 (Cat6) | - | 1 coax | Tête de lit |\n\n**Coffret de communication :** [Emplacement, grade 1/2/3, nombre de RJ45]\n\n### Sécurité & Alarme\n| Type d'équipement | Quantité | Emplacements | Modèle/Référence |\n|-------------------|----------|--------------|------------------|\n| Centrale alarme | 1 | Entrée | - |\n| Détecteur mouvement | 3 | Salon, Couloir, Garage | - |\n| Détecteur ouverture | 5 | Portes + fenêtres RDC | - |\n| Sirène extérieure | 1 | Façade principale | - |\n| DAAF | 3 | Chambres, Couloir | Obligatoire NF |\n\n### Communication & Accès\n| Équipement | Quantité | Emplacement | Type |\n|------------|----------|-------------|------|\n| Vidéophone | 1 | Entrée | 2 fils / IP |\n| Platine de rue | 1 | Portail | - |\n| Gâche électrique | 1 | Porte d'entrée | 12V |\n\n### Vidéosurveillance\n| Caméra | Emplacement | Type | Résolution | Alimentation |\n|--------|-------------|------|------------|--------------|\n| CAM1 | Entrée principale | Dôme IP | 4MP | PoE |\n| CAM2 | Garage | Bullet IP | 2MP | PoE |\n\n**Observations :**\n[Topologie réseau, longueurs de câbles critiques, compatibilité PoE, bande passante nécessaire]\n</output_format>\n\n<guidelines>\n- Distingue clairement les prises RJ45 données des prises téléphone\n- Indique la catégorie des câbles réseau si spécifiée\n- Compte les DAAF (obligatoires dans chambres et circulations)\n- Signale si le coffret de communication semble sous-dimensionné\n- Mentionne les distances de câblage si elles dépassent 90m (limite Ethernet)\n</guidelines>\n```\n\n---"
+        }
+      },
+      "id": "agent_courants_faibles",
+      "name": "agent_courants_faibles",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        2680,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "agent_courants_faibles-llm",
+      "name": "LLM Courants Faibles",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2680,
+        1340
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "Tu vérifies la conformité électrique et identifies les points de sécurité d'un plan BTP selon la norme NFC 15-100.\n\n<context>\nCette analyse sert au contrôle Consuel (obligatoire avant mise sous tension) et à la sécurité des occupants. Les non-conformités doivent être corrigées avant réception du chantier. Sois rigoureux et précis dans tes observations.\n</context>\n\n<verification_points>\nVérifie ces éléments de conformité NFC 15-100 :\n\n**Protection des personnes :**\n- Liaison équipotentielle principale (terre)\n- Liaison équipotentielle locale (salle de bain, cuisine)\n- Interrupteurs différentiels 30mA (au moins 2, types A et AC)\n- Dispositif de coupure d'urgence accessible\n\n**Protection des circuits :**\n- Adéquation disjoncteur / section de câble\n- Protection contre les surintensités\n- Protection contre les courts-circuits\n- Sélectivité des protections\n\n**Volumes de sécurité (salle de bain) :**\n- Volume 0 : interdit sauf TBTS 12V\n- Volume 1 : IPX4 minimum, classe II\n- Volume 2 : IPX3 minimum\n- Hors volume : prises autorisées à 60cm du volume 1\n\n**Protection contre la foudre :**\n- Parafoudre si zone AQ2 ou ligne aérienne\n- Mise à la terre < 100Ω\n\n**Sécurité incendie :**\n- DAAF dans chambres et circulations (obligatoire)\n- Câbles C2 (non propagateur de flamme)\n\n**Accessibilité et signalisation :**\n- Hauteur des prises et interrupteurs (PMR si applicable)\n- Repérage des circuits au tableau\n- Schéma unifilaire présent\n</verification_points>\n\n<output_format>\nRéponds en Markdown structuré ainsi :\n\n### ✅ Éléments conformes détectés\n- Présence de 2 interrupteurs différentiels 30mA (1 type A, 1 type AC)\n- Liaison équipotentielle salle de bain identifiée\n- DAAF présents dans toutes les chambres\n- Sections de câbles cohérentes avec protections\n\n### ⚠️ Points à vérifier sur site\n- Vérifier indice de protection (IP) des luminaires salle de bain (non spécifié sur plan)\n- Confirmer présence du parafoudre (zone AQ2 probable)\n- Mesurer résistance de terre (doit être < 100Ω)\n- Vérifier hauteur des prises PMR si logement accessible\n\n### ❌ Non-conformités détectées\n- Prise 16A dans volume 1 de la salle de bain (interdit NFC 15-100 art. 701.512.3)\n- Circuit éclairage cuisine protégé par 20A sur câble 1.5mm² (max 16A requis)\n- Absence de différentiel type A pour circuits spécialisés (plaque, lave-linge)\n\n### 📋 Recommandations de mise en conformité\n1. Déplacer la prise salle de bain hors volume 1 (min 60cm du bac de douche)\n2. Remplacer disjoncteur 20A par 16A sur circuit éclairage cuisine\n3. Installer un différentiel 30mA type A en tête des circuits spécialisés\n4. Ajouter parafoudre type 2 en tête d'installation si zone AQ2\n\n**Articles NFC 15-100 concernés :**\n- Art. 701.512.3 : Volumes salle de bain\n- Art. 771.443.1.2 : Protection différentielle 30mA\n- Art. 443.4 : Protection contre la foudre\n</output_format>\n\n<guidelines>\n- Cite les articles NFC 15-100 pertinents pour chaque non-conformité\n- Distingue clairement : conforme / à vérifier / non-conforme\n- Priorise les non-conformités par gravité (sécurité > confort)\n- Si le plan est incomplet, liste les vérifications à faire sur site\n- Ne signale une non-conformité que si tu es certain (évite les faux positifs)\n</guidelines>\n```\n"
+        }
+      },
+      "id": "agent_securite",
+      "name": "agent_securite",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        2920,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "agent_securite-llm",
+      "name": "LLM Securite",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2920,
+        1340
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "Tu identifies tous les équipements automatisés et domotiques d'un plan électrique BTP.\n\n<context>\nCette analyse sert à l'installation des systèmes motorisés et domotiques. Les électriciens et installateurs domotique utilisent ces données pour le câblage, la programmation, et la configuration des automatismes. Les protocoles et compatibilités sont importants.\n</context>\n\n<elements_to_identify>\nPour chaque équipement, note la quantité, l'emplacement, le type de commande et le protocole si visible :\n\n**Fermetures motorisées :**\n- Volets roulants électriques\n- Stores intérieurs / extérieurs\n- Brise-soleil orientables (BSO)\n- Portail coulissant / battant\n- Porte de garage sectionnelle / basculante\n\n**Éclairage intelligent :**\n- Variateurs de lumière\n- Détecteurs de présence / mouvement\n- Détecteurs crépusculaires\n- Minuteries\n- Télérupteurs\n- Éclairage RGB / RGBW\n\n**Chauffage & Climatisation :**\n- Thermostats programmables / connectés\n- Programmateurs fil pilote\n- Contacteurs jour/nuit (chauffe-eau)\n- Sondes de température\n- Vannes thermostatiques motorisées\n\n**Systèmes domotiques :**\n- Box domotique / serveur (type, protocole)\n- Bus domotique (KNX, Modbus, etc.)\n- Modules radio (Z-Wave, Zigbee, EnOcean)\n- Actionneurs connectés\n- Prises connectées\n\n**Sécurité automatisée :**\n- Simulation de présence\n- Scénarios d'alarme (fermeture volets)\n- Éclairage de sécurité automatique\n</elements_to_identify>\n\n<output_format>\nRéponds en Markdown structuré avec ces tableaux :\n\n### Volets & Fermetures\n| Pièce/Zone | Type | Commande | Protocole | Observations |\n|------------|------|----------|-----------|--------------|\n| Salon baie vitrée | Volet roulant | Interrupteur mural + centralisé | Filaire | Moteur Somfy |\n| Chambre 1 | Volet roulant | Interrupteur mural | Filaire | - |\n| Portail entrée | Portail coulissant | Télécommande 433MHz + badge | Radio | Photocellules sécurité |\n\n### Éclairage intelligent\n| Zone | Équipement | Fonction | Protocole |\n|------|------------|----------|-----------|\n| Couloir RDC | Détecteur présence | Allumage auto + minuterie 2min | Filaire |\n| Salon | Variateur LED | Gradation 0-100% | Filaire |\n| Extérieur | Détecteur crépusculaire | Allumage automatique nuit | Filaire |\n\n### Chauffage & Confort\n| Zone | Équipement | Type | Programmation | Protocole |\n|------|------------|------|---------------|-----------|\n| Toutes pièces | Thermostat | Connecté Netatmo | Hebdomadaire + app | WiFi |\n| Chauffe-eau | Contacteur J/N | Heures creuses | Horloge EDF | Filaire |\n\n### Système domotique central\n| Équipement | Marque/Modèle | Protocoles supportés | Emplacement |\n|------------|---------------|----------------------|-------------|\n| Box domotique | Home Assistant | Zigbee, Z-Wave, WiFi | Coffret technique |\n| Hub Zigbee | Sonoff ZBBridge | Zigbee 3.0 | Salon |\n\n### Scénarios & Automatisations identifiés\n- **Départ maison :** Fermeture tous volets + extinction éclairages + mode alarme\n- **Retour maison :** Ouverture volets salon + allumage éclairage entrée\n- **Nuit :** Fermeture volets + extinction progressive éclairages + baisse chauffage\n\n**Observations techniques :**\n[Compatibilité entre protocoles, centralisation possible, extensions suggérées, câblage spécifique requis]\n</output_format>\n\n<guidelines>\n- Distingue les commandes locales (interrupteur) des commandes centralisées\n- Identifie les protocoles utilisés (important pour compatibilité)\n- Signale les équipements isolés qui pourraient être intégrés à la domotique\n- Suggère des améliorations si le plan montre des automatismes basiques (ex: ajouter détecteurs présence)\n- Mentionne les alimentations spécifiques (12V, 24V, PoE)\n</guidelines>\n```\n"
+        }
+      },
+      "id": "agent_automatismes",
+      "name": "agent_automatismes",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        3160,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "agent_automatismes-llm",
+      "name": "LLM Automatismes",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        3160,
+        1340
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.output }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2460,
+        850
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input": {
+      "main": [
+        [
+          {
+            "node": "IF Has URL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IF Has Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has URL": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract PDF Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Set PDF Text URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Base64": {
+      "main": [
+        [
+          {
+            "node": "Set PDF Text B64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set PDF Text URL": {
+      "main": [
+        [
+          {
+            "node": "Merge Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set PDF Text B64": {
+      "main": [
+        [
+          {
+            "node": "Merge Text",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "IF Has Images": {
+      "main": [
+        [
+          {
+            "node": "Vision Infos Générales",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Vision Courants Forts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Vision Courants Faibles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Vision Sécurité",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Vision Automatismes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Vision Infos Générales": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vision Infos Générales",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Vision Courants Forts": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vision Courants Forts",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Vision Courants Faibles": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vision Courants Faibles",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Vision Sécurité": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vision Sécurité",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Vision Automatismes": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vision Automatismes",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision Infos Générales": {
+      "main": [
+        [
+          {
+            "node": "Merge Vision Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision Courants Forts": {
+      "main": [
+        [
+          {
+            "node": "Merge Vision Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision Courants Faibles": {
+      "main": [
+        [
+          {
+            "node": "Merge Vision Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision Sécurité": {
+      "main": [
+        [
+          {
+            "node": "Merge Vision Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision Automatismes": {
+      "main": [
+        [
+          {
+            "node": "Merge Vision Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Text": {
+      "main": [
+        [
+          {
+            "node": "Merge All",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge All NoVision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Vision Results": {
+      "main": [
+        [
+          {
+            "node": "Merge All",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "No Vision": {
+      "main": [
+        [
+          {
+            "node": "Merge All NoVision",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All": {
+      "main": [
+        [
+          {
+            "node": "Combine Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All NoVision": {
+      "main": [
+        [
+          {
+            "node": "Combine Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Context": {
+      "main": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Orchestrateur": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_infos_generales": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Infos Generales": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_infos_generales",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_courants_forts": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Courants Forts": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_courants_forts",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_courants_faibles": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Courants Faibles": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_courants_faibles",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_securite": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Securite": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_securite",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_automatismes": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Automatismes": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_automatismes",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Orchestrateur": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "v3-vision-2026",
+  "meta": {
+    "instanceId": "d83d6ee8c15e23092dde69cba9545217e1d643ea593a8410ee96a681c9fa9340"
+  },
+  "id": "stuCZVcJjwse49Xw",
+  "tags": []
+}
