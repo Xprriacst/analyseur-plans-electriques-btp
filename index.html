@@ -202,6 +202,22 @@
         <div class="hint">ou cliquer pour sélectionner — .png .jpg .webp — plusieurs fichiers autorisés</div>
       </div>
       <div class="images-preview" id="images-preview"></div>
+
+      <div class="separator">OPTIONNEL</div>
+
+      <!-- DPGF -->
+      <label>📊 DPGF (Décomposition du Prix Global et Forfaitaire)</label>
+      <div class="drop-zone" id="drop-dpgf">
+        <input type="file" accept=".xlsx,.xls" id="input-dpgf" onchange="handleDpgf(this)">
+        <div class="icon">📊</div>
+        <div class="label">Glisser-déposer le DPGF ici</div>
+        <div class="hint">ou cliquer pour sélectionner — .xlsx .xls — pour analyse comparative</div>
+      </div>
+      <div class="file-info" id="info-dpgf">
+        <span>📊</span>
+        <span class="name" id="name-dpgf"></span>
+        <button class="remove" onclick="removeDpgf()" title="Retirer">✕</button>
+      </div>
     </div>
 
     <!-- Tab : URL -->
@@ -234,6 +250,7 @@
 <script>
   let lastMarkdown = "";
   let pdfFile = null;
+  let dpgfFile = null;
   let imageFiles = [];
 
   // --- Tabs ---
@@ -255,6 +272,21 @@
     document.getElementById('input-pdf').value = '';
     document.getElementById('info-pdf').classList.remove('visible');
     document.getElementById('drop-pdf').style.display = '';
+  }
+
+  // --- DPGF handling ---
+  function handleDpgf(input) {
+    if (!input.files.length) return;
+    dpgfFile = input.files[0];
+    document.getElementById('name-dpgf').textContent = dpgfFile.name + ' (' + (dpgfFile.size / 1024 / 1024).toFixed(1) + ' Mo)';
+    document.getElementById('info-dpgf').classList.add('visible');
+    document.getElementById('drop-dpgf').style.display = 'none';
+  }
+  function removeDpgf() {
+    dpgfFile = null;
+    document.getElementById('input-dpgf').value = '';
+    document.getElementById('info-dpgf').classList.remove('visible');
+    document.getElementById('drop-dpgf').style.display = '';
   }
 
   // --- Images handling ---
@@ -334,6 +366,7 @@
     const parts = [];
     if (pdfFile) parts.push('texte PDF');
     if (imageFiles.length) parts.push(imageFiles.length + ' image(s) vision');
+    if (dpgfFile) parts.push('DPGF');
     if (activeTab === 'url') parts.push('URL');
     document.getElementById('status-text').textContent =
       'Analyse en cours (' + parts.join(' + ') + ')… 2 à 5 minutes';
@@ -372,6 +405,11 @@
               mime: img.type
             });
           }
+        }
+
+        if (dpgfFile) {
+          payload.dpgf_base64 = await fileToBase64(dpgfFile);
+          payload.dpgf_filename = dpgfFile.name;
         }
 
         resp = await fetch(webhookUrl, {

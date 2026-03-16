@@ -14,6 +14,8 @@ Application d'analyse automatisée de plans électriques BTP combinant **extract
 - ✅ **5 agents spécialisés** : Infos générales, Courants forts, Courants faibles, Sécurité, Automatismes
 - ✅ **Comptage visuel** : Identification et quantification automatique des symboles électriques
 - ✅ **Conformité NFC 15-100** : Vérification réglementaire automatisée
+- ✅ **Comparaison DPGF** : Analyse des écarts quantitatifs entre plan et DPGF
+- ✅ **Calcul de métrés** : Estimation automatique des longueurs de câbles
 - ✅ **Interface intuitive** : Drag & drop, multi-source (fichiers locaux ou Google Drive)
 - ✅ **Export Markdown** : Rapports structurés prêts à l'emploi
 
@@ -41,6 +43,7 @@ Interface Web → Webhook n8n → Extraction PDF → Orchestrateur IA
 | **Courants Faibles** | VDI, réseau, sécurité | Texte + Vision |
 | **Sécurité** | Conformité NFC 15-100 | Texte + Vision |
 | **Automatismes** | Domotique, motorisations | Texte + Vision |
+| **Comparaison DPGF** | Écarts quantitatifs, métrés | Analyse Plan + DPGF |
 
 ---
 
@@ -85,6 +88,7 @@ Interface Web → Webhook n8n → Extraction PDF → Orchestrateur IA
 1. **Onglet "Fichiers locaux"**
    - Glisser-déposer un PDF de plan électrique
    - Ajouter une ou plusieurs images PNG du plan
+   - **(Optionnel)** Ajouter un DPGF en PDF pour analyse comparative
    - Cliquer sur "Analyser"
 
 2. **Onglet "URL Google Drive"**
@@ -99,6 +103,7 @@ Le rapport généré contient :
 - 📡 Courants faibles (réseau, sécurité, vidéosurveillance)
 - 🛡️ Sécurité & conformité (NFC 15-100, volumes, protections)
 - 🤖 Automatismes & domotique (volets, détecteurs, thermostats)
+- 📊 **Analyse DPGF** (si fourni) : écarts quantitatifs, métrés calculés, recommandations chiffrage
 
 ---
 
@@ -106,13 +111,16 @@ Le rapport généré contient :
 
 ```
 windsurf-project-7/
-├── workflow-v3-ultra.json    # Workflow n8n de production
+├── workflow-v3-ultra.json    # Workflow n8n de production (avec agent DPGF)
 ├── index.html                 # Interface web
-├── prompts-optimises.md       # Prompts système des agents
+├── prompts-optimises.md       # Prompts système des 5 agents d'analyse
+├── prompt-agent-dpgf.md       # Prompt système de l'agent DPGF
+├── generate_v4_dpgf.py        # Script de génération du workflow v4
 ├── FICHE_PROJET.md           # Documentation complète
 ├── README.md                  # Ce fichier
 ├── .gitignore                # Fichiers ignorés par Git
 └── archive/                   # Versions obsolètes
+    ├── workflow-v3-ultra-sans-dpgf.json
     ├── workflow-v3-lite.json
     ├── workflow-v3-vision.json
     └── workflow-updated.json
@@ -166,18 +174,21 @@ windsurf-project-7/
 
 ## 🔄 Roadmap
 
-### Version actuelle : 3.0 Ultra
+### Version actuelle : 4.0 DPGF
 - ✅ Analyse multimodale (texte + vision)
 - ✅ 5 agents spécialisés
 - ✅ Passthrough Binary Images
 - ✅ Interface web complète
+- ✅ Agent de comparaison DPGF (analyse des écarts quantitatifs)
+- ✅ Calcul automatique des métrés de câbles
+- ✅ Tableau de synthèse pour chiffrage
 
 ### Prochaines versions
-- [ ] Agent de comparaison DPGF (analyse des écarts quantitatifs)
 - [ ] Support multi-pages PDF
 - [ ] Export PDF formaté
 - [ ] Historique des analyses
 - [ ] API REST
+- [ ] Analyse CCTP (Cahier des Clauses Techniques Particulières)
 
 ---
 

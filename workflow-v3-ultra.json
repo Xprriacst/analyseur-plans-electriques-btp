@@ -1,5 +1,5 @@
 {
-  "name": "BTP - Electricite Multi-Agent Analyzer v3-ultra (Passthrough Images)",
+  "name": "BTP - Electricite Multi-Agent Analyzer v4 (avec DPGF)",
   "nodes": [
     {
       "parameters": {
@@ -12,36 +12,62 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [864, 3664],
+      "position": [
+        864,
+        3664
+      ],
       "webhookId": "btp-elec-multiagent-2026"
     },
     {
       "parameters": {
         "respondWith": "text",
         "responseBody": "={{ $json.output }}",
-        "options": {"responseCode": 200}
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "respond-webhook",
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2864, 3808]
+      "position": [
+        2864,
+        3808
+      ]
     },
     {
       "parameters": {
-        "jsCode": "\nconst body = $input.first().json.body || $input.first().json;\nconst item = {\n  json: {\n    has_pdf_url: !!body.pdf_url,\n    has_pdf_base64: !!body.pdf_base64,\n    has_images: !!(body.images && body.images.length > 0),\n    pdf_url: body.pdf_url || '',\n    pdf_base64: body.pdf_base64 || '',\n    pdf_filename: body.pdf_filename || 'plan.pdf',\n    image_count: body.images ? body.images.length : 0\n  },\n  binary: {}\n};\n\nif (body.images && body.images.length > 0) {\n  for (let i = 0; i < body.images.length; i++) {\n    item.binary['image_' + i] = {\n      data: body.images[i].base64,\n      mimeType: body.images[i].mime || 'image/png',\n      fileName: body.images[i].filename || ('image_' + i + '.png')\n    };\n  }\n}\n\nif (body.pdf_base64) {\n  item.binary['pdf_data'] = {\n    data: body.pdf_base64,\n    mimeType: 'application/pdf',\n    fileName: body.pdf_filename || 'plan.pdf'\n  };\n}\n\nreturn [item];\n"
+        "jsCode": "\nconst body = $input.first().json.body || $input.first().json;\nconst item = {\n  json: {\n    has_pdf_url: !!body.pdf_url,\n    has_pdf_base64: !!body.pdf_base64,\n    has_dpgf_base64: !!body.dpgf_base64,\n    has_images: !!(body.images && body.images.length > 0),\n    pdf_url: body.pdf_url || '',\n    pdf_base64: body.pdf_base64 || '',\n    dpgf_base64: body.dpgf_base64 || '',\n    pdf_filename: body.pdf_filename || 'plan.pdf',\n    dpgf_filename: body.dpgf_filename || 'dpgf.pdf',\n    image_count: body.images ? body.images.length : 0\n  },\n  binary: {}\n};\n\nif (body.images && body.images.length > 0) {\n  for (let i = 0; i < body.images.length; i++) {\n    item.binary['image_' + i] = {\n      data: body.images[i].base64,\n      mimeType: body.images[i].mime || 'image/png',\n      fileName: body.images[i].filename || ('image_' + i + '.png')\n    };\n  }\n}\n\nif (body.pdf_base64) {\n  item.binary['pdf_data'] = {\n    data: body.pdf_base64,\n    mimeType: 'application/pdf',\n    fileName: body.pdf_filename || 'plan.pdf'\n  };\n}\n\nif (body.dpgf_base64) {\n  item.binary['dpgf_data'] = {\n    data: body.dpgf_base64,\n    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n    fileName: body.dpgf_filename || 'dpgf.xlsx'\n  };\n}\n\nreturn [item];\n"
       },
       "id": "prepare-input",
       "name": "Prepare Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1104, 3632]
+      "position": [
+        1104,
+        3632
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
-          "conditions": [{"id": "url-check", "leftValue": "={{ $json.has_pdf_url }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals", "singleValue": true}}],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "url-check",
+              "leftValue": "={{ $json.has_pdf_url }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
@@ -50,7 +76,10 @@
       "name": "IF Has URL",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1344, 3440]
+      "position": [
+        1344,
+        3440
+      ]
     },
     {
       "parameters": {
@@ -61,20 +90,36 @@
       "name": "Download PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1584, 3328]
+      "position": [
+        1584,
+        3328
+      ]
     },
     {
-      "parameters": {"operation": "pdf", "options": {}},
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
       "id": "extract-text-url",
       "name": "Extract PDF Text",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
-      "position": [1824, 3328]
+      "position": [
+        1824,
+        3328
+      ]
     },
     {
       "parameters": {
         "assignments": {
-          "assignments": [{"id": "pdf_text_url", "name": "pdf_text", "value": "={{ $json.text.substring(0, 80000) }}", "type": "string"}]
+          "assignments": [
+            {
+              "id": "pdf_text_url",
+              "name": "pdf_text",
+              "value": "={{ $json.text.substring(0, 80000) }}",
+              "type": "string"
+            }
+          ]
         },
         "options": {}
       },
@@ -82,20 +127,37 @@
       "name": "Set PDF Text URL",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [2064, 3328]
+      "position": [
+        2064,
+        3328
+      ]
     },
     {
-      "parameters": {"operation": "pdf", "binaryPropertyName": "pdf_data", "options": {}},
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "pdf_data",
+        "options": {}
+      },
       "id": "extract-text-b64",
       "name": "Extract PDF Base64",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
-      "position": [1584, 3552]
+      "position": [
+        1584,
+        3552
+      ]
     },
     {
       "parameters": {
         "assignments": {
-          "assignments": [{"id": "pdf_text_b64", "name": "pdf_text", "value": "={{ $json.text ? $json.text.substring(0, 80000) : '' }}", "type": "string"}]
+          "assignments": [
+            {
+              "id": "pdf_text_b64",
+              "name": "pdf_text",
+              "value": "={{ $json.text ? $json.text.substring(0, 80000) : '' }}",
+              "type": "string"
+            }
+          ]
         },
         "options": {}
       },
@@ -103,15 +165,24 @@
       "name": "Set PDF Text B64",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1824, 3552]
+      "position": [
+        1824,
+        3552
+      ]
     },
     {
-      "parameters": {"mode": "append", "options": {}},
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
       "id": "merge-text",
       "name": "Merge Text",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [2304, 3440]
+      "position": [
+        2304,
+        3440
+      ]
     },
     {
       "parameters": {
@@ -127,19 +198,35 @@
       "name": "Orchestrateur",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
-      "position": [2544, 3440]
+      "position": [
+        2544,
+        3440
+      ]
     },
     {
       "parameters": {
-        "model": {"__rl": true, "value": "claude-opus-4-6", "mode": "list", "cachedResultName": "Claude Opus 4.6"},
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
         "options": {}
       },
       "id": "llm-orch",
       "name": "LLM Orchestrateur",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
-      "position": [2448, 3664],
-      "credentials": {"anthropicApi": {"id": "VdlqaX9zUuo4smPu", "name": "Anthropic account"}}
+      "position": [
+        2448,
+        3664
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
     },
     {
       "parameters": {
@@ -152,19 +239,35 @@
       "name": "agent_infos_generales",
       "type": "@n8n/n8n-nodes-langchain.agentTool",
       "typeVersion": 3,
-      "position": [2544, 3712]
+      "position": [
+        2544,
+        3712
+      ]
     },
     {
       "parameters": {
-        "model": {"__rl": true, "value": "claude-opus-4-6", "mode": "list", "cachedResultName": "Claude Opus 4.6"},
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
         "options": {}
       },
       "id": "llm-infos",
       "name": "LLM Infos Generales",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
-      "position": [2544, 3920],
-      "credentials": {"anthropicApi": {"id": "VdlqaX9zUuo4smPu", "name": "Anthropic account"}}
+      "position": [
+        2544,
+        3920
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
     },
     {
       "parameters": {
@@ -177,19 +280,35 @@
       "name": "agent_courants_forts",
       "type": "@n8n/n8n-nodes-langchain.agentTool",
       "typeVersion": 3,
-      "position": [2784, 3712]
+      "position": [
+        2784,
+        3712
+      ]
     },
     {
       "parameters": {
-        "model": {"__rl": true, "value": "claude-opus-4-6", "mode": "list", "cachedResultName": "Claude Opus 4.6"},
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
         "options": {}
       },
       "id": "llm-cf",
       "name": "LLM Courants Forts",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
-      "position": [2784, 3920],
-      "credentials": {"anthropicApi": {"id": "VdlqaX9zUuo4smPu", "name": "Anthropic account"}}
+      "position": [
+        2784,
+        3920
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
     },
     {
       "parameters": {
@@ -202,19 +321,35 @@
       "name": "agent_courants_faibles",
       "type": "@n8n/n8n-nodes-langchain.agentTool",
       "typeVersion": 3,
-      "position": [3024, 3712]
+      "position": [
+        3024,
+        3712
+      ]
     },
     {
       "parameters": {
-        "model": {"__rl": true, "value": "claude-opus-4-6", "mode": "list", "cachedResultName": "Claude Opus 4.6"},
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
         "options": {}
       },
       "id": "llm-cfaibles",
       "name": "LLM Courants Faibles",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
-      "position": [3024, 3920],
-      "credentials": {"anthropicApi": {"id": "VdlqaX9zUuo4smPu", "name": "Anthropic account"}}
+      "position": [
+        3024,
+        3920
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
     },
     {
       "parameters": {
@@ -227,19 +362,35 @@
       "name": "agent_securite",
       "type": "@n8n/n8n-nodes-langchain.agentTool",
       "typeVersion": 3,
-      "position": [3264, 3712]
+      "position": [
+        3264,
+        3712
+      ]
     },
     {
       "parameters": {
-        "model": {"__rl": true, "value": "claude-opus-4-6", "mode": "list", "cachedResultName": "Claude Opus 4.6"},
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
         "options": {}
       },
       "id": "llm-secu",
       "name": "LLM Securite",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
-      "position": [3264, 3920],
-      "credentials": {"anthropicApi": {"id": "VdlqaX9zUuo4smPu", "name": "Anthropic account"}}
+      "position": [
+        3264,
+        3920
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
     },
     {
       "parameters": {
@@ -252,44 +403,506 @@
       "name": "agent_automatismes",
       "type": "@n8n/n8n-nodes-langchain.agentTool",
       "typeVersion": 3,
-      "position": [3504, 3712]
+      "position": [
+        3504,
+        3712
+      ]
     },
     {
       "parameters": {
-        "model": {"__rl": true, "value": "claude-opus-4-6", "mode": "list", "cachedResultName": "Claude Opus 4.6"},
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
         "options": {}
       },
       "id": "llm-auto",
       "name": "LLM Automatismes",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
-      "position": [3504, 3920],
-      "credentials": {"anthropicApi": {"id": "VdlqaX9zUuo4smPu", "name": "Anthropic account"}}
+      "position": [
+        3504,
+        3920
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "dpgf-check",
+              "leftValue": "={{ $json.has_dpgf_base64 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-dpgf",
+      "name": "IF Has DPGF",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2864,
+        3600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "dpgf_data",
+        "options": {}
+      },
+      "id": "extract-dpgf",
+      "name": "Extract DPGF Excel",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        3104,
+        3488
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Convertir les données Excel en texte formaté pour l'IA\nconst data = $input.all();\nlet dpgfText = \"DPGF - Décomposition du Prix Global et Forfaitaire\\n\\n\";\n\nfor (const item of data) {\n  const json = item.json;\n  \n  // Construire une ligne de tableau\n  const row = Object.keys(json).map(key => {\n    const value = json[key];\n    return `${key}: ${value}`;\n  }).join(' | ');\n  \n  dpgfText += row + '\\n';\n}\n\nreturn [{\n  json: {\n    dpgf_text: dpgfText.substring(0, 80000)\n  }\n}];\n"
+      },
+      "id": "convert-dpgf",
+      "name": "Convert DPGF to Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3344,
+        3488
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-dpgf",
+      "name": "Merge with DPGF",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3584,
+        3600
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyse du plan:\n{{ $json.output }}\n\nDPGF:\n{{ $json.dpgf_text }}",
+        "options": {},
+        "systemMessage": "# Prompt Agent DPGF — Analyse Comparative et Métrés\n\n## Rôle\n\nTu es un agent spécialisé dans l'analyse comparative entre les **documents techniques d'un projet électrique BTP** (plans, CCTP) et le **DPGF** (Décomposition du Prix Global et Forfaitaire).\n\n## Context\n\n<context>\nLe DPGF est le document contractuel qui liste toutes les prestations à réaliser avec leurs quantités et prix unitaires. Il sert de base au chiffrage et à la facturation.\n\nTu reçois :\n1. **Analyse du plan** : résultats des 5 agents (Infos, CF, CFA, Sécurité, Automatismes)\n2. **DPGF** : document PDF contenant les quantités prévues au marché\n\nTon objectif : détecter les **écarts quantitatifs** entre ce qui est prévu au DPGF et ce qui est réellement présent sur le plan.\n</context>\n\n## Sources de Données\n\n<data_sources>\n### 1. Analyse du Plan (entrée texte)\nRésultats structurés des 5 agents :\n- Tableaux de comptage (prises, luminaires, circuits)\n- Équipements identifiés (PAC, VMC, tableaux)\n- Longueurs de câbles estimées\n- Conformité et observations\n\n### 2. DPGF (entrée texte PDF)\nDocument structuré contenant :\n- Lots et sous-lots\n- Désignation des prestations\n- Unités (U, ml, m², ens, etc.)\n- Quantités prévues\n- Prix unitaires (optionnel pour l'analyse)\n</data_sources>\n\n## Tâches à Réaliser\n\n<tasks>\n### Tâche 1 : Extraction des Quantités DPGF\n\nExtrais du DPGF toutes les lignes avec quantités, en les structurant ainsi :\n\n| Lot | Désignation | Unité | Qté DPGF | Observations |\n|-----|-------------|-------|----------|--------------|\n| 1.1 | Prise 2P+T 16A | U | 45 | Standard |\n| 1.2 | Point lumineux LED | U | 28 | Tous types |\n| 2.1 | Câble U-1000 R2V 3G2,5 | ml | 250 | Circuits prises |\n\n### Tâche 2 : Extraction des Quantités Plan\n\nÀ partir de l'analyse du plan, extrais les quantités identifiées :\n\n| Catégorie | Désignation | Qté Plan | Source |\n|-----------|-------------|----------|--------|\n| Courants Forts | Prises 16A | 42 | Agent CF (comptage visuel) |\n| Courants Forts | Points lumineux | 31 | Agent CF (comptage visuel) |\n| Courants Faibles | Prises RJ45 | 18 | Agent CFA |\n\n### Tâche 3 : Comparaison et Calcul des Écarts\n\nCompare les quantités DPGF vs Plan et calcule les écarts :\n\n**Écart** = Qté Plan - Qté DPGF\n- **Écart positif** : Plus d'équipements sur le plan que prévu au DPGF (⚠️ surcoût potentiel)\n- **Écart négatif** : Moins d'équipements sur le plan que prévu au DPGF (⚠️ prestation manquante)\n- **Écart nul** : Conformité parfaite (✅)\n\n### Tâche 4 : Calcul des Métrés de Câbles\n\nSi le DPGF prévoit des longueurs de câbles mais que le plan ne les indique pas explicitement, **estime** les métrés nécessaires en fonction de :\n- Distance moyenne entre tableau et équipements\n- Nombre de circuits\n- Hauteur sous plafond (cheminement vertical)\n- Réserve technique (10-15%)\n\n**Formule indicative** :\n```\nLongueur câble circuit = (Distance horizontale + Hauteur × 2) × 1.15\n```\n\n### Tâche 5 : Identification des Prestations Manquantes\n\nIdentifie les prestations présentes dans le DPGF mais **absentes** du plan :\n- Équipements non représentés graphiquement\n- Prestations de mise en œuvre (fouilles, tranchées, percements)\n- Prestations intellectuelles (études, DOE, DICT)\n\n</tasks>\n\n## Format de Sortie\n\n<output_format>\nGénère un rapport Markdown structuré ainsi :\n\n---\n\n# 📊 Analyse Comparative DPGF vs Plan Électrique\n\n## 1. Synthèse des Écarts Quantitatifs\n\n### Tableau Récapitulatif\n\n| Lot | Désignation | Unité | Qté DPGF | Qté Plan | Écart | Statut | Impact |\n|-----|-------------|-------|----------|----------|-------|--------|--------|\n| 1.1 | Prise 2P+T 16A | U | 45 | 42 | -3 | ⚠️ | Prestation manquante ou erreur plan |\n| 1.2 | Point lumineux LED | U | 28 | 31 | +3 | ⚠️ | Surcoût potentiel non chiffré |\n| 1.3 | Interrupteur VA | U | 12 | 12 | 0 | ✅ | Conforme |\n| 2.1 | Prise RJ45 Cat6A | U | 20 | 18 | -2 | ⚠️ | Prestation manquante |\n| 3.1 | Tableau divisionnaire | U | 1 | 1 | 0 | ✅ | Conforme |\n\n### Statistiques Globales\n\n- **Total lignes DPGF** : XX\n- **Lignes conformes** : XX (XX%)\n- **Écarts positifs** : XX (surcoût potentiel)\n- **Écarts négatifs** : XX (prestations manquantes)\n- **Lignes non vérifiables** : XX (prestations hors plan)\n\n---\n\n## 2. Métrés Calculés (Câbles et Chemins de Câbles)\n\n### Câbles Courants Forts\n\n| Référence | Désignation | Qté DPGF | Métré Calculé | Écart | Méthode de Calcul |\n|-----------|-------------|----------|---------------|-------|-------------------|\n| 2.1 | Câble U-1000 R2V 3G2,5 | 250 ml | 285 ml | +35 ml | 42 prises × (5m moy + 2.5m H) × 1.15 |\n| 2.2 | Câble U-1000 R2V 3G1,5 | 180 ml | 195 ml | +15 ml | 31 luminaires × (4m moy + 2.5m H) × 1.15 |\n\n**Hypothèses de calcul** :\n- Distance moyenne tableau → prise : 5 m\n- Distance moyenne tableau → luminaire : 4 m\n- Hauteur sous plafond : 2,5 m\n- Réserve technique : 15%\n\n### Chemins de Câbles\n\n| Type | Qté DPGF | Métré Calculé | Observations |\n|------|----------|---------------|--------------|\n| Goulotte 40×40 | 50 ml | 65 ml | Circulations + bureaux |\n| Chemin de câbles 100 | 30 ml | 30 ml | Local technique |\n\n---\n\n## 3. Écarts Critiques (Impact Chiffrage)\n\n### ⚠️ Surcoûts Potentiels (Écarts Positifs)\n\n| Désignation | Qté Excédentaire | Impact Estimé |\n|-------------|------------------|---------------|\n| Points lumineux LED | +3 U | Vérifier si prévu en variante ou erreur DPGF |\n| Prises 16A bureau | +5 U | Demander avenant si confirmé nécessaire |\n\n**Action recommandée** : Vérifier avec le maître d'œuvre si ces équipements supplémentaires sont bien souhaités.\n\n### ⚠️ Prestations Manquantes (Écarts Négatifs)\n\n| Désignation | Qté Manquante | Impact Estimé |\n|-------------|---------------|---------------|\n| Prises 16A | -3 U | Vérifier si oubli plan ou erreur DPGF |\n| Prises RJ45 | -2 U | Risque de non-conformité besoin client |\n\n**Action recommandée** : Clarifier avec le BE si les quantités DPGF sont correctes ou si le plan doit être mis à jour.\n\n---\n\n## 4. Prestations DPGF Non Vérifiables sur Plan\n\nCes prestations sont listées au DPGF mais ne peuvent pas être vérifiées visuellement sur le plan :\n\n| Lot | Désignation | Qté DPGF | Raison |\n|-----|-------------|----------|--------|\n| 5.1 | Fouille en tranchée | 25 ml | Prestation de mise en œuvre |\n| 5.2 | Percement dalle béton | 12 U | Prestation de mise en œuvre |\n| 6.1 | Dossier DOE | 1 ens | Prestation intellectuelle |\n| 6.2 | DICT | 1 ens | Prestation administrative |\n\n**Note** : Ces prestations doivent être maintenues au DPGF même si non représentées sur le plan.\n\n---\n\n## 5. Recommandations pour le Chiffrage\n\n### Actions Immédiates\n\n1. **Clarifier les écarts > 10%** avec le maître d'œuvre\n2. **Vérifier les métrés de câbles** : écart de +50 ml détecté\n3. **Demander avenant** si les 3 luminaires supplémentaires sont confirmés\n\n### Points de Vigilance\n\n- ⚠️ **Prises RJ45** : 2 manquantes par rapport au DPGF (vérifier besoin réseau)\n- ⚠️ **Câbles CF** : métré calculé supérieur de 15% au DPGF (distances sous-estimées ?)\n- ✅ **Tableaux électriques** : conformité parfaite DPGF/Plan\n\n### Optimisations Possibles\n\n- Regrouper les circuits pour réduire les longueurs de câbles\n- Vérifier si certaines prises peuvent être supprimées (surdimensionnement)\n\n---\n\n## 6. Tableau de Chiffrage Pré-Rempli\n\n| Lot | Désignation | Unité | Qté Retenue | PU HT | Total HT | Observations |\n|-----|-------------|-------|-------------|-------|----------|--------------|\n| 1.1 | Prise 2P+T 16A | U | **42** | À remplir | - | Qté plan (DPGF : 45) |\n| 1.2 | Point lumineux LED | U | **31** | À remplir | - | Qté plan (DPGF : 28) — **Avenant ?** |\n| 2.1 | Câble 3G2,5 | ml | **285** | À remplir | - | Métré calculé (DPGF : 250) |\n\n**Légende** :\n- Qté en **gras** : Quantité retenue pour le chiffrage (issue du plan ou du calcul)\n- **Avenant ?** : Écart significatif nécessitant validation client\n\n---\n\n</output_format>\n\n## Guidelines\n\n<guidelines>\n### Précision et Rigueur\n\n- Ne jamais inventer de quantités : si une information n'est pas dans les sources, indique \"Non spécifié\"\n- Signale clairement les **hypothèses** utilisées pour les calculs de métrés\n- Distingue les **écarts confirmés** (visibles sur plan) des **écarts probables** (calculés)\n\n### Interprétation des Écarts\n\n- **Écart < 5%** : Tolérance normale (arrondis, réserves)\n- **Écart 5-10%** : À vérifier mais acceptable\n- **Écart > 10%** : ⚠️ Écart significatif nécessitant clarification\n\n### Métrés de Câbles\n\n- Utilise les distances **réelles** si visibles sur le plan (échelle)\n- Sinon, utilise des **distances moyennes** et indique-le clairement\n- Ajoute toujours une **réserve technique** de 10-15%\n- Compte les **cheminements verticaux** (hauteur × 2 pour montée + descente)\n\n### Prestations Hors Plan\n\n- Identifie les prestations DPGF qui ne peuvent pas être vérifiées sur le plan\n- Ne les marque pas comme \"manquantes\" mais comme \"non vérifiables\"\n- Conserve-les dans le tableau de chiffrage\n\n### Ton et Langage\n\n- Professionnel et factuel\n- Utilise le vocabulaire technique du BTP électricité\n- Sois **constructif** : propose des actions, pas seulement des constats\n- Mets en évidence les **impacts financiers** potentiels\n\n</guidelines>\n\n## Exemples de Cas Particuliers\n\n<special_cases>\n### Cas 1 : DPGF Global, Plan Détaillé\n\n**DPGF** : \"Points lumineux LED — 28 U\"  \n**Plan** : 15 plafonniers + 8 appliques + 5 spots = 28 U  \n**Analyse** : ✅ Conformité globale, détail OK\n\n### Cas 2 : Métré Manquant au DPGF\n\n**DPGF** : \"Câble 3G2,5 — À métrer\"  \n**Plan** : 42 prises identifiées  \n**Calcul** : 42 × (5m + 2.5m×2) × 1.15 = 483 ml  \n**Analyse** : Métré calculé à intégrer au chiffrage\n\n### Cas 3 : Prestation DPGF Non Représentée\n\n**DPGF** : \"Mise à la terre — 1 ens\"  \n**Plan** : Symbole MALT présent mais pas de détail  \n**Analyse** : Prestation confirmée, quantité DPGF à conserver\n\n### Cas 4 : Écart Significatif\n\n**DPGF** : \"Prises RJ45 — 30 U\"  \n**Plan** : 18 prises RJ45 identifiées  \n**Écart** : -12 U (-40%)  \n**Analyse** : ⚠️ Écart critique — Vérifier besoin réseau réel avec client\n\n</special_cases>\n\n## Limitations\n\n<limitations>\n- Tu ne peux pas vérifier les **prix unitaires** (hors scope)\n- Tu ne peux pas valider les **prestations de mise en œuvre** non représentées sur plan\n- Les **métrés calculés** sont des **estimations** basées sur des hypothèses\n- Tu ne peux pas détecter les **erreurs de conception** (seulement les écarts quantitatifs)\n</limitations>\n\n---\n\n**En résumé** : Tu es un outil d'aide au chiffrage qui détecte les écarts entre DPGF et plan, calcule les métrés manquants, et génère un tableau de synthèse exploitable pour l'électricien.\n"
+      },
+      "id": "call-dpgf-analysis",
+      "name": "Analyse DPGF",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        3824,
+        3600
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {}
+      },
+      "id": "llm-dpgf",
+      "name": "LLM DPGF",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        3824,
+        3808
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "VdlqaX9zUuo4smPu",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "final_output",
+              "name": "output",
+              "value": "={{ $json.output }}\n\n---\n\n{{ $json.response }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-final-dpgf",
+      "name": "Set Final Output DPGF",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4064,
+        3600
+      ]
     }
   ],
   "pinData": {},
   "connections": {
-    "Webhook": {"main": [[{"node": "Prepare Input", "type": "main", "index": 0}]]},
-    "Prepare Input": {"main": [[{"node": "IF Has URL", "type": "main", "index": 0}]]},
-    "IF Has URL": {"main": [[{"node": "Download PDF", "type": "main", "index": 0}], [{"node": "Extract PDF Base64", "type": "main", "index": 0}]]},
-    "Download PDF": {"main": [[{"node": "Extract PDF Text", "type": "main", "index": 0}]]},
-    "Extract PDF Text": {"main": [[{"node": "Set PDF Text URL", "type": "main", "index": 0}]]},
-    "Set PDF Text URL": {"main": [[{"node": "Merge Text", "type": "main", "index": 0}]]},
-    "Extract PDF Base64": {"main": [[{"node": "Set PDF Text B64", "type": "main", "index": 0}]]},
-    "Set PDF Text B64": {"main": [[{"node": "Merge Text", "type": "main", "index": 1}]]},
-    "Merge Text": {"main": [[{"node": "Orchestrateur", "type": "main", "index": 0}]]},
-    "Orchestrateur": {"main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]},
-    "LLM Orchestrateur": {"ai_languageModel": [[{"node": "Orchestrateur", "type": "ai_languageModel", "index": 0}]]},
-    "agent_infos_generales": {"ai_tool": [[{"node": "Orchestrateur", "type": "ai_tool", "index": 0}]]},
-    "LLM Infos Generales": {"ai_languageModel": [[{"node": "agent_infos_generales", "type": "ai_languageModel", "index": 0}]]},
-    "agent_courants_forts": {"ai_tool": [[{"node": "Orchestrateur", "type": "ai_tool", "index": 0}]]},
-    "LLM Courants Forts": {"ai_languageModel": [[{"node": "agent_courants_forts", "type": "ai_languageModel", "index": 0}]]},
-    "agent_courants_faibles": {"ai_tool": [[{"node": "Orchestrateur", "type": "ai_tool", "index": 0}]]},
-    "LLM Courants Faibles": {"ai_languageModel": [[{"node": "agent_courants_faibles", "type": "ai_languageModel", "index": 0}]]},
-    "agent_securite": {"ai_tool": [[{"node": "Orchestrateur", "type": "ai_tool", "index": 0}]]},
-    "LLM Securite": {"ai_languageModel": [[{"node": "agent_securite", "type": "ai_languageModel", "index": 0}]]},
-    "agent_automatismes": {"ai_tool": [[{"node": "Orchestrateur", "type": "ai_tool", "index": 0}]]},
-    "LLM Automatismes": {"ai_languageModel": [[{"node": "agent_automatismes", "type": "ai_languageModel", "index": 0}]]}
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input": {
+      "main": [
+        [
+          {
+            "node": "IF Has URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has URL": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract PDF Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Set PDF Text URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set PDF Text URL": {
+      "main": [
+        [
+          {
+            "node": "Merge Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Base64": {
+      "main": [
+        [
+          {
+            "node": "Set PDF Text B64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set PDF Text B64": {
+      "main": [
+        [
+          {
+            "node": "Merge Text",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Text": {
+      "main": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Orchestrateur": {
+      "main": [
+        [
+          {
+            "node": "IF Has DPGF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Orchestrateur": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_infos_generales": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Infos Generales": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_infos_generales",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_courants_forts": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Courants Forts": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_courants_forts",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_courants_faibles": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Courants Faibles": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_courants_faibles",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_securite": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Securite": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_securite",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_automatismes": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrateur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Automatismes": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agent_automatismes",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has DPGF": {
+      "main": [
+        [
+          {
+            "node": "Extract DPGF Excel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge with DPGF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract DPGF Excel": {
+      "main": [
+        [
+          {
+            "node": "Convert DPGF to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert DPGF to Text": {
+      "main": [
+        [
+          {
+            "node": "Merge with DPGF",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge with DPGF": {
+      "main": [
+        [
+          {
+            "node": "Analyse DPGF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse DPGF": {
+      "main": [
+        [
+          {
+            "node": "Set Final Output DPGF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM DPGF": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analyse DPGF",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Final Output DPGF": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": true,
   "settings": {
@@ -297,7 +910,7 @@
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
-  "versionId": "v3-ultra-passthrough-2026",
+  "versionId": "v4-dpgf-2026",
   "meta": {
     "instanceId": "d83d6ee8c15e23092dde69cba9545217e1d643ea593a8410ee96a681c9fa9340"
   },
