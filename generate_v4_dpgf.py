@@ -31,7 +31,7 @@ const item = {
     pdf_base64: body.pdf_base64 || '',
     dpgf_base64: body.dpgf_base64 || '',
     pdf_filename: body.pdf_filename || 'plan.pdf',
-    dpgf_filename: body.dpgf_filename || 'dpgf.pdf',
+    dpgf_filename: body.dpgf_filename || 'dpgf.xlsx',
     image_count: body.images ? body.images.length : 0
   },
   binary: {}
@@ -87,7 +87,28 @@ if_has_dpgf_node = {
         "options": {}
     },
     "id": "if-has-dpgf",
-    "name": "IF Has DPGF",
+    "name": "IF Has DPGF Start",
+    "type": "n8n-nodes-base.if",
+    "typeVersion": 2,
+    "position": [1344, 3840]
+}
+
+if_has_dpgf_after_plan_node = {
+    "parameters": {
+        "conditions": {
+            "options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict"},
+            "conditions": [{
+                "id": "dpgf-check-after-plan",
+                "leftValue": "={{ $('Prepare Input').first().json.has_dpgf_base64 }}",
+                "rightValue": True,
+                "operator": {"type": "boolean", "operation": "equals", "singleValue": True}
+            }],
+            "combinator": "and"
+        },
+        "options": {}
+    },
+    "id": "if-has-dpgf-after-plan",
+    "name": "IF Has DPGF After Plan",
     "type": "n8n-nodes-base.if",
     "typeVersion": 2,
     "position": [2864, 3600]
@@ -188,7 +209,7 @@ llm_dpgf_node = {
 call_dpgf_node = {
     "parameters": {
         "promptType": "define",
-        "text": "=Analyse du plan:\n{{ $json.output }}\n\nDPGF:\n{{ $json.dpgf_text }}",
+        "text": "=Analyse du plan:\n{{ $json.output }}\n\nDPGF:\n{{ $('Convert DPGF to Text').first().json.dpgf_text }}",
         "options": {},
         "systemMessage": prompt_dpgf
     },
@@ -206,7 +227,7 @@ set_final_dpgf_node = {
             "assignments": [{
                 "id": "final_output",
                 "name": "output",
-                "value": "={{ $json.output }}\n\n---\n\n{{ $json.response }}",
+                "value": "={{ $('Orchestrateur').first().json.output + '\n\n---\n\n# ANALYSE DPGF\n\n' + $json.text }}",
                 "type": "string"
             }]
         },
@@ -222,6 +243,7 @@ set_final_dpgf_node = {
 # Ajouter les nouveaux nodes
 workflow['nodes'].extend([
     if_has_dpgf_node,
+    if_has_dpgf_after_plan_node,
     extract_dpgf_node,
     convert_dpgf_node,
     merge_with_dpgf_node,
@@ -232,14 +254,28 @@ workflow['nodes'].extend([
 
 # Modifier les connexions
 # L'orchestrateur va maintenant vers IF Has DPGF au lieu de Respond to Webhook
-workflow['connections']['Orchestrateur'] = {
-    "main": [[{"node": "IF Has DPGF", "type": "main", "index": 0}]]
+workflow['connections']['Prepare Input'] = {
+    "main": [[
+        {"node": "IF Has URL", "type": "main", "index": 0},
+        {"node": "IF Has DPGF Start", "type": "main", "index": 0}
+    ]]
 }
 
-# IF Has DPGF : si oui -> Extract DPGF Excel, si non -> Respond to Webhook
-workflow['connections']['IF Has DPGF'] = {
+# IF Has DPGF : si oui -> Extract DPGF Excel
+workflow['connections']['IF Has DPGF Start'] = {
     "main": [
         [{"node": "Extract DPGF Excel", "type": "main", "index": 0}],
+        []
+    ]
+}
+
+workflow['connections']['Orchestrateur'] = {
+    "main": [[{"node": "IF Has DPGF After Plan", "type": "main", "index": 0}]]
+}
+
+workflow['connections']['IF Has DPGF After Plan'] = {
+    "main": [
+        [{"node": "Analyse DPGF", "type": "main", "index": 0}],
         [{"node": "Respond to Webhook", "type": "main", "index": 0}]
     ]
 }
@@ -249,24 +285,8 @@ workflow['connections']['Extract DPGF Excel'] = {
     "main": [[{"node": "Convert DPGF to Text", "type": "main", "index": 0}]]
 }
 
-# Convert DPGF -> Merge with DPGF (input 1)
-workflow['connections']['Convert DPGF to Text'] = {
-    "main": [[{"node": "Merge with DPGF", "type": "main", "index": 1}]]
-}
-
-# Orchestrateur -> Merge with DPGF (input 0) via IF Has DPGF
-# On doit aussi connecter l'output de l'orchestrateur au merge
-# Modification: on passe par IF Has DPGF qui duplique vers Merge
-workflow['connections']['IF Has DPGF']['main'][0].append({
-    "node": "Merge with DPGF",
-    "type": "main",
-    "index": 0
-})
-
-# Merge with DPGF -> Analyse DPGF
-workflow['connections']['Merge with DPGF'] = {
-    "main": [[{"node": "Analyse DPGF", "type": "main", "index": 0}]]
-}
+# Convert DPGF to Text: no downstream connection needed
+# (accessed via $('Convert DPGF to Text') reference in Analyse DPGF)
 
 # Analyse DPGF -> Set Final Output DPGF
 workflow['connections']['Analyse DPGF'] = {
@@ -289,8 +309,8 @@ with open('workflow-v4-dpgf.json', 'w', encoding='utf-8') as f:
 
 print("✅ Workflow v4 avec agent DPGF généré : workflow-v4-dpgf.json")
 print("\nNouvelles fonctionnalités :")
-print("- Upload optionnel d'un DPGF (PDF)")
-print("- Extraction automatique du texte DPGF")
+print("- Upload optionnel d'un DPGF Excel")
+print("- Extraction automatique des données DPGF")
 print("- Agent de comparaison DPGF vs Plan")
 print("- Tableau de synthèse des écarts quantitatifs")
 print("- Calcul des métrés de câbles")

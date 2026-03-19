@@ -29,3 +29,8 @@ npm-debug.log*
 # Temporary files
 *.tmp
 *.temp
+
+# Test data & results
+AAPC/
+test-result-*.md
+push-fix-*.js
